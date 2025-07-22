@@ -31,10 +31,43 @@ const structureQueryPrompt = ai.definePrompt({
 
   The JSON format should include fields for location, property type, minimum bedrooms, maximum price, and any other relevant criteria specified in the query.
 
+  Here are some examples:
+
+  User query: "Show me 3 bedroom apartments in Bangalore under 2 crores"
+  Structured Query:
+  {
+    "city": "Bangalore",
+    "bedrooms_min": 3,
+    "bedrooms_max": 3,
+    "price_max": 20000000,
+    "propertyType": "Apartment"
+  }
+  
+  User query: "I'm looking for a house in Mumbai with at least 4 bedrooms and a budget of 5 crores"
+  Structured Query:
+  {
+    "city": "Mumbai",
+    "bedrooms_min": 4,
+    "price_max": 50000000,
+    "propertyType": "House"
+  }
+  
+  User query: "Find me a 2 or 3 bhk condo in Delhi"
+  Structured Query:
+  {
+    "city": "Delhi",
+    "bedrooms_min": 2,
+    "bedrooms_max": 3,
+    "propertyType": "Condo"
+  }
+
   Here's the user's query: {{{$input}}}
 
   Please return a JSON string that represents the structured query.
   Ensure the JSON is valid and parsable.
+  The currency is Indian Rupees (INR). Do not include currency symbols in the JSON output.
+  If a field is not specified in the query, do not include it in the JSON output.
+  Recognize Indian numeric terms like "lakh" (100,000) and "crore" (10,000,000).
   `,
 });
 

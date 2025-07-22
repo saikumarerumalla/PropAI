@@ -32,11 +32,17 @@ const prompt = ai.definePrompt({
   name: 'suggestSearchImprovementPrompt',
   input: {schema: SuggestSearchImprovementInputSchema},
   output: {schema: SuggestSearchImprovementOutputSchema},
-  prompt: `You are an expert property search assistant. Given an initial search query and the initial search results, provide suggestions for improving the search query so that the user can find more relevant properties.
+  prompt: `You are an expert property search assistant for the Indian market. Given an initial search query and the initial search results, provide suggestions for improving the search query so that the user can find more relevant properties.
 
 Original Search Query: {{{searchQuery}}}
 
 Initial Search Results: {{{searchResults}}}
+
+Here are some examples of how you can provide suggestions:
+
+- If the user searches for "apartments in Bangalore," you could suggest, "Try searching for '2 BHK apartments in Koramangala, Bangalore' for more specific results."
+- If the user searches for "houses under 1 crore," you could suggest, "Consider including a city in your search, like 'houses under 1 crore in Pune'."
+- If the search results are too broad, you could suggest adding amenities, like "Try adding 'with parking' or 'gated community' to your search."
 
 Suggestions for improving the search query:
 `,
