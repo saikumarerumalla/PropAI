@@ -4,6 +4,7 @@
  * @fileOverview This file defines a Genkit flow for structuring user property search queries into a JSON format.
  *
  * - structureQuery - A function that takes a free-form text query and returns a structured JSON object.
+ *
  * - StructureQueryInput - The input type for the structureQuery function (a string query).
  * - StructureQueryOutput - The return type for the structureQuery function (a JSON string).
  */
@@ -18,18 +19,61 @@ const StructureQueryOutputSchema = z.object({
   structuredQuery: z.string().describe('A JSON string representing the structured query.'),
 });
 export type StructureQueryOutput = z.infer<typeof StructureQueryOutputSchema>;
-
 export async function structureQuery(input: StructureQueryInput): Promise<StructureQueryOutput> {
-  return structureQueryFlow(input);
+  try {
+    const rawOutput = await structureQueryFlow(input);
+    // Log the raw output from the AI model for debugging
+    console.log('Raw AI output:', rawOutput);
+
+    let structuredQueryString = '{}'; // Default to an empty object
+
+    if (typeof rawOutput === 'string') {
+      // If the raw output is a string, assume it might be the JSON string directly
+      try {
+        JSON.parse(rawOutput);
+        structuredQueryString = rawOutput;
+      } catch (e) {
+        console.warn('Raw AI output string is not valid JSON.', e);
+      }
+    } else if (rawOutput && typeof rawOutput === 'object' && 'structuredQuery' in rawOutput && typeof rawOutput.structuredQuery === 'string') {
+      // If the raw output is an object with a structuredQuery field
+      try {
+        JSON.parse(rawOutput.structuredQuery);
+        structuredQueryString = rawOutput.structuredQuery;
+      } catch (e) {
+        console.warn(`Raw AI output object's structuredQuery field is not valid JSON.`, e);
+      }
+    } else {
+       console.warn('AI output is not a string or an object with a structuredQuery field. Returning empty structured query.');
+    }
+
+    return { structuredQuery: structuredQueryString };
+
+  } catch (error) {
+    console.error('Error in structureQuery flow:', error);
+    // Return an empty structured query in case of any error
+    return { structuredQuery: '{}' };
+  }
 }
 
 const structureQueryPrompt = ai.definePrompt({
   name: 'structureQueryPrompt',
   input: {schema: StructureQueryInputSchema},
   output: {schema: StructureQueryOutputSchema},
-  prompt: `You are an AI assistant designed to convert unstructured property search queries into a structured JSON format.
+  prompt: `You are an AI assistant designed to convert unstructured property search queries into a structured JSON format for the Indian real estate market.
 
-  The JSON format should include fields for location, property type, minimum bedrooms, maximum price, and any other relevant criteria specified in the query.
+  Generate ONLY the following JSON object based on the user's query. You MUST include fields for city, propertyType, bedrooms_min, and price_max if that information is clearly present in the query. If a field is not specified, omit it.
+
+  {
+    "city": string, // The city mentioned in the query.
+    "area": string, // Specific area or locality within the city.
+    "propertyType": string, // The type of property (e.g., "Apartment", "House", "Villa", "Plot", "Commercial").
+    "bedrooms_min": number, // The minimum number of bedrooms (consider BHK).
+    "bedrooms_max": number, // The maximum number of bedrooms (consider BHK).
+    "price_max": number, // The maximum price in Indian Rupees (recognize lakhs and crores, convert to numeric value).
+    "amenities": string, // Any mentioned amenities (e.g., "parking", "garden", "gated community", "private pool").
+    "transactionType": string // Whether it's for "sale" or "rent".
+  }
 
   Here are some examples:
 
@@ -61,13 +105,44 @@ const structureQueryPrompt = ai.definePrompt({
     "propertyType": "Condo"
   }
 
-  Here's the user's query: {{{$input}}}
+  User query: "Apartment for sale in Pune around Koregaon Park with 2 BHK"
+  Structured Query:
+  {
+    "city": "Pune",
+    "area": "Koregaon Park",
+    "bedrooms_min": 2,
+    "bedrooms_max": 2,
+    "propertyType": "Apartment"
+  }
 
-  Please return a JSON string that represents the structured query.
-  Ensure the JSON is valid and parsable.
-  The currency is Indian Rupees (INR). Do not include currency symbols in the JSON output.
-  If a field is not specified in the query, do not include it in the JSON output.
-  Recognize Indian numeric terms like "lakh" (100,000) and "crore" (10,000,000).
+  User query: "Villa in Goa with a private pool, budget up to 10 crore"
+  Structured Query:
+  {
+    "city": "Goa",
+    "price_max": 100000000,
+    "propertyType": "Villa",
+    "amenities": "private pool"
+  }
+
+  User query: "Commercial property on rent in Chennai"
+  Structured Query:
+  {
+    "city": "Chennai",
+    "propertyType": "Commercial",
+    "transactionType": "rent"
+  }
+
+  User query: "2 bedroom apartment in Mumbai under 2 crores"
+  Structured Query:
+  {
+    "city": "Mumbai",
+    "bedrooms_min": 2,
+    "bedrooms_max": 2,
+    "price_max": 20000000,
+    "propertyType": "Apartment"
+  }
+
+  Here's the user's query: {{{$input}}}
   `,
 });
 

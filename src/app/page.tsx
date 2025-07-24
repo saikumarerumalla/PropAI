@@ -1,77 +1,101 @@
 "use client";
 
 import { useState } from 'react';
+import algoliasearch from 'algoliasearch/lite';
+import { InstantSearch, Hits, Configure } from 'react-instantsearch-hooks-web';
 import { structureQuery } from '@/ai/flows/structure-query';
-import { ALL_PROPERTIES } from '@/lib/data';
 import type { Property } from '@/lib/types';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { PropertyCard } from '@/components/property-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Search, AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+
+// Use environment variables for Algolia keys
+const appId = process.env.NEXT_PUBLIC_ALGOLIA_APP_ID!;
+const searchKey = process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY!;
+
+if (!appId || !searchKey) {
+  throw new Error("Algolia App ID or Search API Key is not configured. Please check your .env.local file.");
+}
+
+const searchClient = algoliasearch(appId, searchKey);
 
 interface StructuredQuery {
-  location?: string;
+  city?: string;
   propertyType?: 'House' | 'Apartment' | 'Condo';
-  minBedrooms?: number;
-  maxPrice?: number;
+  bedrooms_min?: number;
+  bedrooms_max?: number;
+  price_max?: number;
+  area?: string;
+  amenities?: string;
+  transactionType?: string;
 }
+
+const Hit = ({ hit }: { hit: Property }) => <PropertyCard property={hit} />;
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [properties, setProperties] = useState<Property[]>([]);
+  const [filters, setFilters] = useState<string>('');
+  const [query, setQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchQuery.trim()) return;
+    const trimmedQuery = searchQuery.trim();
+    if (!trimmedQuery) return;
 
     setIsLoading(true);
     setError(null);
-    setProperties([]);
     setHasSearched(true);
+    setFilters(''); // Clear previous filters
+    setQuery(''); // Clear previous query
 
     try {
-      const response = await structureQuery(searchQuery);
-      const structuredQuery: StructuredQuery = JSON.parse(response.structuredQuery);
-
-      let filteredProperties = ALL_PROPERTIES;
+      const response = await structureQuery(trimmedQuery);
+      const structured: StructuredQuery = JSON.parse(response.structuredQuery);
       
-      if (structuredQuery.location) {
-        const location = structuredQuery.location.toLowerCase();
-        filteredProperties = filteredProperties.filter(
-          p => p.city.toLowerCase().includes(location) || p.state.toLowerCase().includes(location) || p.address.toLowerCase().includes(location)
-        );
+      let filterParts: string[] = [];
+      if (structured.city) {
+        filterParts.push(`city:'${structured.city}'`);
       }
-
-      if (structuredQuery.propertyType) {
-        const type = structuredQuery.propertyType.toLowerCase();
-        filteredProperties = filteredProperties.filter(
-          p => p.propertyType.toLowerCase() === type
-        );
+      if (structured.propertyType) {
+        filterParts.push(`propertyType:'${structured.propertyType}'`);
       }
-      
-      if (structuredQuery.minBedrooms) {
-        filteredProperties = filteredProperties.filter(
-          p => p.bedrooms >= structuredQuery.minBedrooms!
-        );
+      if (structured.bedrooms_min) {
+        filterParts.push(`bedrooms >= ${structured.bedrooms_min}`);
       }
-
-      if (structuredQuery.maxPrice) {
-        filteredProperties = filteredProperties.filter(
-          p => p.price <= structuredQuery.maxPrice!
-        );
+      if (structured.bedrooms_max) {
+        filterParts.push(`bedrooms <= ${structured.bedrooms_max}`);
+      }
+      if (structured.price_max) {
+        filterParts.push(`price <= ${structured.price_max}`);
+      }
+      if (structured.area) {
+        filterParts.push(`area:'${structured.area}'`);
+      }
+      if (structured.amenities) {
+        filterParts.push(`amenities:'${structured.amenities}'`);
+      }
+       if (structured.transactionType) {
+         filterParts.push(`transactionType:'${structured.transactionType}'`);
       }
       
-      setProperties(filteredProperties);
+      const generatedFilters = filterParts.join(' AND ');
+      
+      if (generatedFilters) {
+        setFilters(generatedFilters);
+        setQuery(trimmedQuery); // Use original query for text search
+      } else {
+        setQuery(trimmedQuery);
+      }
 
     } catch (err) {
       console.error(err);
-      setError('Failed to process search query. Please try a different search or try again later.');
-      setProperties([]);
+      setError('Failed to process search query. Performing basic search.');
+      setQuery(trimmedQuery);
     } finally {
       setIsLoading(false);
     }
@@ -82,17 +106,17 @@ export default function Home() {
       <div className="text-center max-w-3xl mx-auto">
         <h1 className="text-4xl md:text-5xl font-headline font-bold text-primary">PropAI</h1>
         <p className="mt-4 text-lg md:text-xl text-foreground/80 font-body">
-          Your intelligent property search assistant. Just tell us what you're looking for.
+          Your intelligent property search assistant for India.
         </p>
       </div>
 
       <form onSubmit={handleSearch} className="mt-8 max-w-2xl mx-auto flex gap-2">
-        <Input
+        <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="e.g., 'A 3 bedroom house in Springfield for under $500k'"
-          className="flex-grow bg-white/80 focus:bg-white"
+          placeholder="e.g., 'A 3 bedroom apartment in Mumbai under 2 crores'"
+          className="flex-grow bg-white/80 focus:bg-white rounded-md p-2 border border-gray-300"
           aria-label="Property search query"
         />
         <Button type="submit" disabled={isLoading || !searchQuery} size="lg" className="font-bold">
@@ -126,24 +150,16 @@ export default function Home() {
           </Alert>
         )}
 
-        {!isLoading && !error && hasSearched && properties.length === 0 && (
-            <div className="text-center py-16">
-                <h2 className="text-2xl font-headline font-semibold">No Properties Found</h2>
-                <p className="mt-2 text-foreground/70">We couldn't find any properties matching your search. Please try a different query.</p>
-            </div>
+        {hasSearched && !isLoading && !error && (
+          <InstantSearch searchClient={searchClient} indexName="properties">
+            <Configure filters={filters} query={query} />{/* Use single Configure */}
+            <Hits hitComponent={Hit} />
+          </InstantSearch>
         )}
-
-        {!isLoading && !error && properties.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {properties.map((property) => (
-              <PropertyCard key={property.id} property={property} />
-            ))}
-          </div>
-        )}
-
+        
         {!isLoading && !error && !hasSearched && (
             <div className="text-center py-16">
-                <h2 className="text-2xl font-headline font-semibold">Find your dream property</h2>
+                <h2 className="text-2xl font-headline font-semibold">Find your dream property in India</h2>
                 <p className="mt-2 text-foreground/70">Start by entering what you're looking for in the search bar above.</p>
             </div>
         )}
