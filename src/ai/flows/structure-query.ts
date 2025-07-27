@@ -60,25 +60,30 @@ const structureQueryPrompt = ai.definePrompt({
   name: 'structureQueryPrompt',
   input: {schema: StructureQueryInputSchema},
   output: {schema: StructureQueryOutputSchema},
-  prompt: `You are an AI assistant designed to convert unstructured property search queries into a structured JSON format for the Indian real estate market.
+  prompt: `You are an AI assistant designed to extract key information from property search queries for the Indian real estate market and format it as a JSON object.
 
-  Generate ONLY the following JSON object based on the user's query. You MUST include fields for city, propertyType, bedrooms_min, and price_max if that information is clearly present in the query. If a field is not specified, omit it.
+  Based on the user's query, populate the fields in the JSON object below. If a field's information is not present in the query, omit that field from the JSON object.
 
+  Return ONLY the JSON object.
+
+  User query: {{{$input}}}
+
+  JSON object:
   {
     "city": string, // The city mentioned in the query.
     "area": string, // Specific area or locality within the city.
     "propertyType": string, // The type of property (e.g., "Apartment", "House", "Villa", "Plot", "Commercial").
     "bedrooms_min": number, // The minimum number of bedrooms (consider BHK).
     "bedrooms_max": number, // The maximum number of bedrooms (consider BHK).
-    "price_max": number, // The maximum price in Indian Rupees (recognize lakhs and crores, convert to numeric value).
+    "price_max": number, // The maximum price in Indian Rupees (recognize lakhs and crores, convert to numeric value, e.g., "2 crores" becomes 20000000).
     "amenities": string, // Any mentioned amenities (e.g., "parking", "garden", "gated community", "private pool").
     "transactionType": string // Whether it's for "sale" or "rent".
   }
 
-  Here are some examples:
+  Examples:
 
   User query: "Show me 3 bedroom apartments in Bangalore under 2 crores"
-  Structured Query:
+  JSON object:
   {
     "city": "Bangalore",
     "bedrooms_min": 3,
@@ -86,18 +91,18 @@ const structureQueryPrompt = ai.definePrompt({
     "price_max": 20000000,
     "propertyType": "Apartment"
   }
-  
+
   User query: "I'm looking for a house in Mumbai with at least 4 bedrooms and a budget of 5 crores"
-  Structured Query:
+  JSON object:
   {
     "city": "Mumbai",
     "bedrooms_min": 4,
     "price_max": 50000000,
     "propertyType": "House"
   }
-  
+
   User query: "Find me a 2 or 3 bhk condo in Delhi"
-  Structured Query:
+  JSON object:
   {
     "city": "Delhi",
     "bedrooms_min": 2,
@@ -106,17 +111,18 @@ const structureQueryPrompt = ai.definePrompt({
   }
 
   User query: "Apartment for sale in Pune around Koregaon Park with 2 BHK"
-  Structured Query:
+  JSON object:
   {
     "city": "Pune",
     "area": "Koregaon Park",
     "bedrooms_min": 2,
     "bedrooms_max": 2,
-    "propertyType": "Apartment"
+    "propertyType": "Apartment",
+    "transactionType": "sale"
   }
 
   User query: "Villa in Goa with a private pool, budget up to 10 crore"
-  Structured Query:
+  JSON object:
   {
     "city": "Goa",
     "price_max": 100000000,
@@ -125,7 +131,7 @@ const structureQueryPrompt = ai.definePrompt({
   }
 
   User query: "Commercial property on rent in Chennai"
-  Structured Query:
+  JSON object:
   {
     "city": "Chennai",
     "propertyType": "Commercial",
@@ -133,7 +139,7 @@ const structureQueryPrompt = ai.definePrompt({
   }
 
   User query: "2 bedroom apartment in Mumbai under 2 crores"
-  Structured Query:
+  JSON object:
   {
     "city": "Mumbai",
     "bedrooms_min": 2,
@@ -141,9 +147,7 @@ const structureQueryPrompt = ai.definePrompt({
     "price_max": 20000000,
     "propertyType": "Apartment"
   }
-
-  Here's the user's query: {{{$input}}}
-  `,
+`,
 });
 
 const structureQueryFlow = ai.defineFlow(
